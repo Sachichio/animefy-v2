@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
+import 'register_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -26,35 +27,36 @@ class _LoginPageState extends State<LoginPage> {
     final password = _passwordController.text;
 
     try {
-      // 1. Fetch data user dari MockAPI
       final response = await http.get(
         Uri.parse('https://692c6a37c829d464006f81bc.mockapi.io/Users'),
       );
 
       if (response.statusCode == 200) {
         final List users = json.decode(response.body);
+        Map<String, dynamic>? user;
 
-        // 2. Cari user yang cocok
-        final user = users.firstWhere(
-          (u) => u['username'] == username && u['password'] == password,
-          orElse: () => null,
-        );
+        // Cari user yang cocok, pakai try/catch untuk menghindari error firstWhere
+        try {
+          user = users.cast<Map<String, dynamic>>().firstWhere(
+            (u) => u['username'] == username && u['password'] == password,
+          );
+        } catch (e) {
+          user = null;
+        }
 
         if (user != null) {
-          // 3. Simpan info user ke SharedPreferences
           final prefs = await SharedPreferences.getInstance();
           await prefs.setString("username", user['username']);
           await prefs.setString("role", user['role']);
           await prefs.setBool("isLoggedIn", true);
 
           if (!mounted) return;
-
-          // 4. Navigasi ke HomeScreen
           Navigator.pushReplacementNamed(context, '/home');
 
-          // 5. Tampilkan Snackbar sukses login
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("Login berhasil sebagai ${user['username']} (${user['role']})")),
+            SnackBar(
+              content: Text("Login berhasil sebagai ${user['username']} (${user['role']})"),
+            ),
           );
         } else {
           setState(() {
@@ -121,8 +123,11 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                 const SizedBox(height: 10),
                 TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text("Batal"),
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const RegisterPage()),
+                  ),
+                  child: const Text("Belum punya akun? Daftar di sini"),
                 ),
               ],
             ),
