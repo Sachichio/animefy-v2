@@ -1,53 +1,53 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'pages/login_page.dart';
+import 'pages/register_page.dart';
 import 'screens/home_screen.dart';
 
-void main() {
-  runApp(MyApp());
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  final prefs = await SharedPreferences.getInstance();
+  final bool isLoggedIn = prefs.getBool("isLoggedIn") ?? false;
+
+  runApp(MyApp(isLoggedIn: isLoggedIn));
 }
 
 class MyApp extends StatefulWidget {
+  final bool isLoggedIn;
+  const MyApp({super.key, required this.isLoggedIn});
+
   @override
-  _MyAppState createState() => _MyAppState();
+  State<MyApp> createState() => _MyAppState();
 }
 
 class _MyAppState extends State<MyApp> {
-  ThemeMode _themeMode = ThemeMode.light;
+  ThemeMode _themeMode = ThemeMode.dark;
 
   void toggleTheme() {
     setState(() {
-      _themeMode = _themeMode == ThemeMode.light ? ThemeMode.dark : ThemeMode.light;
+      _themeMode =
+          _themeMode == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark;
     });
   }
-
-  final lightTheme = ThemeData.light().copyWith(
-    primaryColor: Colors.indigo,
-    colorScheme: ColorScheme.light(primary: Colors.indigo),
-    scaffoldBackgroundColor: Colors.white,
-  );
-
-  final darkTheme = ThemeData.dark().copyWith(
-    primaryColor: Colors.deepPurple,
-    colorScheme: ColorScheme.dark(primary: Colors.deepPurple),
-    scaffoldBackgroundColor: Colors.black,
-  );
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Animefy',
-      theme: lightTheme,
-      darkTheme: darkTheme,
-      themeMode: _themeMode,
       debugShowCheckedModeBanner: false,
-      home: AnimatedSwitcher(
-        duration: Duration(milliseconds: 300),
-        switchInCurve: Curves.easeInOut,
-        switchOutCurve: Curves.easeInOut,
-        child: HomeScreen(
-          key: ValueKey(_themeMode), // Trigger rebuild saat tema berubah
-          toggleTheme: toggleTheme,
-        ),
-      ),
+      theme: ThemeData.light(),
+      darkTheme: ThemeData.dark(),
+      themeMode: _themeMode,
+
+      // Selalu buka Home, login hanya jika user pilih login
+      initialRoute: '/home',
+
+      routes: {
+        '/login': (context) => const LoginPage(),
+        '/register': (context) => const RegisterPage(),
+        '/home': (context) => HomeScreen(toggleTheme: toggleTheme),
+      },
     );
   }
 }
