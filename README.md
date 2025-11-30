@@ -8,7 +8,7 @@ Flutter 3.35.0 or newer version
 4. If project still cannot running, you can update flutter version "flutter upgrade" in terminal to get newer version
 5. Repeat again instruction number 2-3, and that's it
 
-# Animefy V1
+# Animefy V2
 
 Anime app using API from jikan.moe
 
