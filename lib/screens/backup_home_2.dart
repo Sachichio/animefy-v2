@@ -40,12 +40,14 @@ class _HomeScreenState extends State<HomeScreen> {
     getUpcomingAnime();
   }
 
+  /// ===============================
   /// LOGIN STATUS
+  /// ===============================
   Future<void> _checkLoginStatus() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
       isLoggedIn = prefs.getBool("isLoggedIn") ?? false;
-      userId = prefs.getString("userId");
+      userId = prefs.getString("userId"); // ambil userId saat login
     });
   }
 
@@ -76,7 +78,9 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  /// ===============================
   /// FILTER GENRE HENTAI
+  /// ===============================
   List<dynamic> filterHentai(List<dynamic> data) {
     return data.where((anime) {
       final genres = anime['genres'] as List<dynamic>? ?? [];
@@ -84,7 +88,9 @@ class _HomeScreenState extends State<HomeScreen> {
     }).toList();
   }
 
+  /// ===============================
   /// FETCH DATA
+  /// ===============================
   Future<void> getAnime() async {
     try {
       final data = await ApiService.fetchTopAnime();
@@ -116,7 +122,9 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  /// ===============================
   /// SORT
+  /// ===============================
   void sortAnime(List<dynamic> list, SortOption option) {
     switch (option) {
       case SortOption.scoreDesc:
@@ -131,7 +139,9 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  /// ===============================
   /// APPBAR ICON
+  /// ===============================
   Widget _buildAppBarIcon({required IconData icon, required VoidCallback onTap}) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 6),
@@ -150,7 +160,9 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  /// ===============================
   /// BUILD SECTION
+  /// ===============================
   Widget buildSection(
       String title,
       List<dynamic> list,
@@ -239,7 +251,9 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  /// ===============================
   /// BUILD
+  /// ===============================
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -253,7 +267,9 @@ class _HomeScreenState extends State<HomeScreen> {
               end: Alignment.bottomRight,
             ),
             borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
-            boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 6, offset: Offset(0, 3))],
+            boxShadow: const [
+              BoxShadow(color: Colors.black26, blurRadius: 6, offset: Offset(0, 3))
+            ],
           ),
           child: AppBar(
             backgroundColor: Colors.transparent,

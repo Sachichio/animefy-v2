@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'register_page.dart';
+import '../services/favorite_service.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -51,12 +52,14 @@ class _LoginPageState extends State<LoginPage> {
           await prefs.setBool("isLoggedIn", true);
           await prefs.setString("userId", user['id']);
 
-          // LOGIN SUKSES — tidak perlu sinkronisasi favorit
+          // Tambahan penting: sinkronkan anime favorit setelah login
           try {
             final String userId = user['id'];
-            print("✔ Login berhasil. UserId: $userId");
+            final serverFavorites = await FavoriteService.getServerFavorites(userId);
+            await FavoriteService.saveFavoritesLocal(serverFavorites);
+            print("✔ Favorite dari server berhasil disinkronkan ke lokal.");
           } catch (e) {
-            print("⚠ Error setelah login: $e");
+            print("⚠ Error sinkronisasi data favorit: $e");
           }
 
           if (!mounted) return;
@@ -105,7 +108,7 @@ class _LoginPageState extends State<LoginPage> {
               children: [
                 Text(
                   "Login Animefy",
-                  style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 20),
                 TextField(

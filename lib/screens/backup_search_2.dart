@@ -27,14 +27,12 @@ class _SearchScreenState extends State<SearchScreen> {
         return !genres.any((g) => (g['name'] as String).toLowerCase() == 'hentai');
       }).toList();
 
-      if (!mounted) return;
       setState(() {
         searchResults = filtered;
         isLoading = false;
       });
     } catch (e) {
       print("Error: $e");
-      if (!mounted) return;
       setState(() => isLoading = false);
     }
   }
@@ -75,25 +73,21 @@ class _SearchScreenState extends State<SearchScreen> {
                   ? const Center(child: CircularProgressIndicator())
                   : searchResults.isEmpty
                       ? const Center(child: Text("Tidak ada hasil."))
-                      : ListView.separated(
+                      : ListView.builder(
                           itemCount: searchResults.length,
-                          separatorBuilder: (_, __) =>
-                              const Divider(height: 1, color: Colors.grey),
                           itemBuilder: (_, index) {
                             final anime = searchResults[index];
-                            final imageUrl = anime['images']?['jpg']?['image_url'] ?? '';
-
                             return ListTile(
                               leading: ClipRRect(
                                 borderRadius: BorderRadius.circular(8),
                                 child: FadeInImage.memoryNetwork(
                                   placeholder: kTransparentImage,
-                                  image: imageUrl,
+                                  image: anime['images']?['jpg']?['image_url'] ?? '',
                                   width: 50,
                                   height: 70,
                                   fit: BoxFit.cover,
                                   imageErrorBuilder: (_, __, ___) =>
-                                      const Icon(Icons.broken_image, size: 50),
+                                      const Icon(Icons.broken_image),
                                 ),
                               ),
                               title: Text(anime['title'] ?? 'Unknown'),

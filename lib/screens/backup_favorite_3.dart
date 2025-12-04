@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/favorite_service.dart';
 import 'detail_screen.dart';
 
 class FavoriteScreen extends StatefulWidget {
-  final String? userId; // userId diteruskan dari HomeScreen
-
-  const FavoriteScreen({super.key, this.userId});
+  const FavoriteScreen({super.key});
 
   @override
   _FavoriteScreenState createState() => _FavoriteScreenState();
@@ -14,27 +13,35 @@ class FavoriteScreen extends StatefulWidget {
 class _FavoriteScreenState extends State<FavoriteScreen> {
   List<dynamic> favorites = [];
   bool isLoading = true;
+  String? userId;
+
+  final Set<int> _loadedIndexes = {};
 
   @override
   void initState() {
     super.initState();
-    loadFavorites();
+    loadUserAndFavorites();
   }
 
-  /// ===============================
-  /// LOAD FAVORITES
-  /// ===============================
+  Future<void> loadUserAndFavorites() async {
+    final prefs = await SharedPreferences.getInstance();
+    userId = prefs.getString('userId');
+
+    await loadFavorites();
+  }
+
   Future<void> loadFavorites() async {
-    setState(() => isLoading = true);
+    setState(() {
+      isLoading = true;
+      _loadedIndexes.clear();
+    });
 
     try {
       List<dynamic> data;
 
-      if (widget.userId != null) {
-        // Ambil dari server (MockAPI)
-        data = await FavoriteService.getServerFavorites(widget.userId!);
+      if (userId != null) {
+        data = await FavoriteService.getServerFavorites(userId!);
       } else {
-        // Ambil dari local storage
         data = await FavoriteService.getFavoritesLocal();
       }
 
@@ -43,6 +50,7 @@ class _FavoriteScreenState extends State<FavoriteScreen> {
         favorites = data;
         isLoading = false;
       });
+
     } catch (e) {
       print("Error load favorites: $e");
       if (!mounted) return;
@@ -53,9 +61,6 @@ class _FavoriteScreenState extends State<FavoriteScreen> {
     }
   }
 
-  /// ===============================
-  /// GET IMAGE
-  /// ===============================
   String getAnimeImage(Map<String, dynamic> anime) {
     return anime['image_url'] ??
         anime['imageUrl'] ??
@@ -63,9 +68,6 @@ class _FavoriteScreenState extends State<FavoriteScreen> {
         'https://via.placeholder.com/150';
   }
 
-  /// ===============================
-  /// BUILD
-  /// ===============================
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -74,10 +76,8 @@ class _FavoriteScreenState extends State<FavoriteScreen> {
           ? const Center(child: CircularProgressIndicator())
           : favorites.isEmpty
               ? const Center(child: Text("Belum ada anime favorit."))
-              : ListView.separated(
+              : ListView.builder(
                   itemCount: favorites.length,
-                  separatorBuilder: (_, __) =>
-                      const Divider(height: 1, color: Colors.grey),
                   itemBuilder: (context, index) {
                     final anime = favorites[index];
                     final imageUrl = getAnimeImage(anime);
@@ -90,21 +90,21 @@ class _FavoriteScreenState extends State<FavoriteScreen> {
                           width: 50,
                           height: 70,
                           fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) =>
-                              const Icon(Icons.broken_image, size: 50),
+                          errorBuilder: (context, error, stackTrace) {
+                            return const Icon(Icons.broken_image, size: 50);
+                          },
                         ),
                       ),
                       title: Text(anime['title'] ?? 'No Title'),
-                      subtitle: Text("Score: ${anime['score'] ?? '-'}"),
+                      subtitle: Text(
+                        "Score: ${anime['score'] ?? '-'}",
+                      ),
                       onTap: () async {
-                        // Buka detail screen dan reload favorites setelah kembali
                         await Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) => DetailScreen(
-                              anime: anime,
-                              userId: widget.userId,
-                            ),
+                            builder: (_) =>
+                                DetailScreen(anime: anime, userId: userId),
                           ),
                         );
                         await loadFavorites();

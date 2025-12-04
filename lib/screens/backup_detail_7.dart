@@ -97,22 +97,10 @@ class _DetailScreenState extends State<DetailScreen> {
     }
   }
 
-  Color cardBackgroundColor(BuildContext context) {
-    return Theme.of(context).brightness == Brightness.dark
-        ? Colors.grey.shade900
-        : Colors.grey.shade200;
-  }
-
   Color chipBackgroundColor(BuildContext context) {
     return Theme.of(context).brightness == Brightness.dark
         ? Colors.white12
-        : Colors.grey.shade300;
-  }
-
-  Color titleBackgroundColor(BuildContext context) {
-    return Theme.of(context).brightness == Brightness.dark
-        ? Colors.black.withOpacity(0.5)
-        : Colors.white.withOpacity(0.5);
+        : Colors.grey.shade200;
   }
 
   @override
@@ -126,7 +114,7 @@ class _DetailScreenState extends State<DetailScreen> {
         slivers: [
           SliverAppBar(
             pinned: true,
-            expandedHeight: 300,
+            expandedHeight: 280,
             backgroundColor: Colors.deepPurple,
             leading: Container(
               margin: EdgeInsets.all(8),
@@ -144,25 +132,17 @@ class _DetailScreenState extends State<DetailScreen> {
               title: Container(
                 padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: titleBackgroundColor(context),
+                  color: isDark ? Colors.black.withOpacity(0.5) : Colors.white.withOpacity(0.5),
                   borderRadius: BorderRadius.circular(6),
                 ),
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    return ConstrainedBox(
-                      constraints: BoxConstraints(maxWidth: constraints.maxWidth),
-                      child: Text(
-                        anime['title'] ?? 'Unknown',
-                        style: TextStyle(
-                          color: isDark ? Colors.white : Colors.black87,
-                          fontWeight: FontWeight.bold,
-                          shadows: [Shadow(blurRadius: 3, color: Colors.black38, offset: Offset(1, 1))],
-                        ),
-                        softWrap: true,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    );
-                  },
+                child: Text(
+                  anime['title'] ?? 'Unknown',
+                  style: TextStyle(
+                    color: isDark ? Colors.white : Colors.black,
+                    fontWeight: FontWeight.bold,
+                    shadows: [Shadow(blurRadius: 3, color: Colors.black38, offset: Offset(1, 1))],
+                  ),
+                  softWrap: true,
                 ),
               ),
               background: Stack(
@@ -189,9 +169,9 @@ class _DetailScreenState extends State<DetailScreen> {
                         child: Image.network(
                           anime['images']?['jpg']?['image_url'] ?? '',
                           fit: BoxFit.contain,
-                          height: 200, // sedikit diperbesar
+                          height: 180,
                           errorBuilder: (_, __, ___) => Container(
-                            height: 200,
+                            height: 180,
                             color: Colors.grey.shade300,
                             child: Icon(Icons.broken_image, size: 80),
                           ),
@@ -237,7 +217,7 @@ class _DetailScreenState extends State<DetailScreen> {
                 Card(
                   elevation: 4,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                  color: cardBackgroundColor(context),
+                  color: Theme.of(context).cardColor,
                   child: Padding(
                     padding: EdgeInsets.all(20),
                     child: Column(
@@ -266,11 +246,11 @@ class _DetailScreenState extends State<DetailScreen> {
                         SizedBox(height: 20),
                         Text('Studio', style: Theme.of(context).textTheme.titleMedium),
                         SizedBox(height: 8),
-                        _studioOrGenreList(context, anime['studios']),
+                        _studioOrGenreList(context, anime['studios'], withColon: true),
                         SizedBox(height: 20),
                         Text('Genre', style: Theme.of(context).textTheme.titleMedium),
                         SizedBox(height: 8),
-                        _studioOrGenreList(context, anime['genres']),
+                        _studioOrGenreList(context, anime['genres'], withColon: true),
                         SizedBox(height: 35),
                         Text(
                           'Sinopsis',
@@ -315,24 +295,14 @@ class _DetailScreenState extends State<DetailScreen> {
       width: double.infinity,
       padding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: Theme.of(context).brightness == Brightness.dark
-            ? Colors.grey.shade800
-            : Colors.white,
+        color: chipBackgroundColor(context),
         borderRadius: BorderRadius.circular(8),
       ),
-      child: Text(
-        value ?? 'N/A',
-        style: TextStyle(
-          fontSize: 16,
-          color: Theme.of(context).brightness == Brightness.dark
-              ? Colors.white
-              : Colors.black87,
-        ),
-      ),
+      child: Text(value ?? 'N/A', style: TextStyle(fontSize: 16)),
     );
   }
 
-  Widget _studioOrGenreList(BuildContext context, List<dynamic>? items) {
+  Widget _studioOrGenreList(BuildContext context, List<dynamic>? items, {bool withColon = false}) {
     final list = items ?? [];
     if (list.isEmpty) return _infoBox(context, 'N/A');
 
@@ -341,7 +311,7 @@ class _DetailScreenState extends State<DetailScreen> {
       children: list.map((item) {
         final name = item['name'] ?? item.toString();
         return Chip(
-          label: Text(name),
+          label: Text(withColon ? '$name:' : name),
           backgroundColor: chipBackgroundColor(context),
         );
       }).toList(),

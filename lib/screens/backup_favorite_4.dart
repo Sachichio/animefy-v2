@@ -15,6 +15,8 @@ class _FavoriteScreenState extends State<FavoriteScreen> {
   List<dynamic> favorites = [];
   bool isLoading = true;
 
+  final Set<int> _loadedIndexes = {}; // opsional, kalau mau optimasi list
+
   @override
   void initState() {
     super.initState();
@@ -25,7 +27,10 @@ class _FavoriteScreenState extends State<FavoriteScreen> {
   /// LOAD FAVORITES
   /// ===============================
   Future<void> loadFavorites() async {
-    setState(() => isLoading = true);
+    setState(() {
+      isLoading = true;
+      _loadedIndexes.clear();
+    });
 
     try {
       List<dynamic> data;
@@ -74,10 +79,8 @@ class _FavoriteScreenState extends State<FavoriteScreen> {
           ? const Center(child: CircularProgressIndicator())
           : favorites.isEmpty
               ? const Center(child: Text("Belum ada anime favorit."))
-              : ListView.separated(
+              : ListView.builder(
                   itemCount: favorites.length,
-                  separatorBuilder: (_, __) =>
-                      const Divider(height: 1, color: Colors.grey),
                   itemBuilder: (context, index) {
                     final anime = favorites[index];
                     final imageUrl = getAnimeImage(anime);

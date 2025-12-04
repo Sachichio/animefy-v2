@@ -8,8 +8,9 @@ class FavoriteService {
       'https://692c6a37c829d464006f81bc.mockapi.io/Favorites';
 
   /// =====================================================
-  /// FAVORITE LOCAL (GUEST / NON-LOGIN)
+  ///           FAVORITE LOCAL (GUEST / NON-LOGIN)
   /// =====================================================
+
   static Future<void> saveFavoritesLocal(List<dynamic> favorites) async {
     final prefs = await SharedPreferences.getInstance();
     prefs.setString(_localKey, jsonEncode(favorites));
@@ -24,7 +25,7 @@ class FavoriteService {
 
   static Future<void> addFavoriteLocal(Map<String, dynamic> anime) async {
     final favorites = await getFavoritesLocal();
-    if (!favorites.any((item) => item['mal_id'].toString() == anime['mal_id'].toString())) {
+    if (!favorites.any((item) => item['mal_id'] == anime['mal_id'])) {
       favorites.add(anime);
       await saveFavoritesLocal(favorites);
     }
@@ -32,21 +33,24 @@ class FavoriteService {
 
   static Future<void> removeFavoriteLocal(int malId) async {
     final favorites = await getFavoritesLocal();
-    favorites.removeWhere((item) => item['mal_id'].toString() == malId.toString());
+    favorites.removeWhere((item) => item['mal_id'] == malId);
     await saveFavoritesLocal(favorites);
   }
 
   static Future<bool> isFavoriteLocal(int malId) async {
     final favorites = await getFavoritesLocal();
-    return favorites.any((item) => item['mal_id'].toString() == malId.toString());
+    return favorites.any((item) => item['mal_id'] == malId);
   }
 
   /// =====================================================
-  /// FAVORITE SERVER (USER LOGIN)
+  ///                FAVORITE SERVER (USER LOGIN)
   /// =====================================================
+
   static Future<List<dynamic>> getServerFavorites(String userId) async {
     try {
-      final response = await http.get(Uri.parse("$_apiUrl?userId=$userId"));
+      final response = await http.get(
+        Uri.parse("$_apiUrl?userId=$userId"),
+      );
 
       print("📥 GET favorites response: ${response.body}");
 
@@ -62,11 +66,11 @@ class FavoriteService {
 
           // normalisasi studios & genres → list of strings
           final studios = (anime['studios'] as List<dynamic>?)
-                  ?.map((e) => e is String ? e : (e['name'] ?? ''))
+                  ?.map((e) => e['name'] ?? '')
                   .toList() ??
               [];
           final genres = (anime['genres'] as List<dynamic>?)
-                  ?.map((e) => e is String ? e : (e['name'] ?? ''))
+                  ?.map((e) => e['name'] ?? '')
                   .toList() ??
               [];
 
@@ -82,13 +86,16 @@ class FavoriteService {
             'season': anime['season'],
             'duration': anime['duration'],
             'synopsis': anime['synopsis'],
+
             'images': {
               'jpg': {'image_url': imageUrl}
             },
+
             'studios': studios,
             'genres': genres,
-            'id': anime['id'].toString(), // selalu string
-            'userId': anime['userId'].toString(),
+
+            'id': anime['id'],
+            'userId': anime['userId'],
           };
         }).toList();
       }
@@ -99,37 +106,41 @@ class FavoriteService {
     return [];
   }
 
-  static Future<bool> addFavoriteServer(String userId, Map<String, dynamic> anime) async {
+  static Future<bool> addFavoriteServer(
+      String userId, Map<String, dynamic> anime) async {
     try {
+      // normalisasi studios & genres → list of strings
       final studios = (anime['studios'] as List<dynamic>?)
-              ?.map((e) => e is String ? e : (e['name'] ?? e.toString()))
+              ?.map((e) => e['name'] ?? e.toString())
               .toList() ??
           [];
       final genres = (anime['genres'] as List<dynamic>?)
-              ?.map((e) => e is String ? e : (e['name'] ?? e.toString()))
+              ?.map((e) => e['name'] ?? e.toString())
               .toList() ??
           [];
-      final imageUrl = anime['image_url'] ?? (anime['images']?['jpg']?['image_url'] ?? '');
+      final imageUrl = anime['image_url'] ??
+          (anime['images']?['jpg']?['image_url'] ?? '');
 
       final payload = {
         "userId": userId,
         "mal_id": anime['mal_id'],
-        "title": anime['title'] ?? "N/A",
-        "title_english": anime['title_english'] ?? "",
-        "title_japanese": anime['title_japanese'] ?? "",
-        "type": anime['type'] ?? "",
-        "episodes": anime['episodes'] ?? 0,
-        "status": anime['status'] ?? "",
-        "score": anime['score'] ?? 0,
-        "season": anime['season'] ?? "",
-        "duration": anime['duration'] ?? "",
-        "synopsis": anime['synopsis'] ?? "",
+        "title": anime["title"] ?? "N/A",
+        "title_english": anime["title_english"] ?? "",
+        "title_japanese": anime["title_japanese"] ?? "",
+        "type": anime["type"] ?? "",
+        "episodes": anime["episodes"] ?? 0,
+        "status": anime["status"] ?? "",
+        "score": anime["score"] ?? 0,
+        "season": anime["season"] ?? "",
+        "duration": anime["duration"] ?? "",
+        "synopsis": anime["synopsis"] ?? "",
         "image_url": imageUrl,
         "studios": studios,
         "genres": genres,
       };
 
-      print("📤 SENDING DATA: $payload");
+      print("📤 SENDING DATA:");
+      print(payload);
 
       final response = await http.post(
         Uri.parse(_apiUrl),
@@ -159,11 +170,15 @@ class FavoriteService {
   }
 
   /// =====================================================
-  /// TOGGLE FAVORITE
+  ///                        TOGGLE ❤
   /// =====================================================
-  static Future<bool> toggleFavorite(Map<String, dynamic> anime, {String? userId}) async {
+  static Future<bool> toggleFavorite(
+    Map<String, dynamic> anime, {
+    String? userId,
+  }) async {
     print("➡ TOGGLE FAVORITE: ${anime['title']} (userId: $userId)");
 
+    // USER LOGIN → server
     if (userId != null) {
       try {
         final favorites = await getServerFavorites(userId);
@@ -199,9 +214,12 @@ class FavoriteService {
   }
 
   /// =====================================================
-  /// CHECK FAVORITE
+  ///                CHECK FAVORITE (DETAIL PAGE)
   /// =====================================================
-  static Future<bool> checkFavorite(Map<String, dynamic> anime, {String? userId}) async {
+  static Future<bool> checkFavorite(
+    Map<String, dynamic> anime, {
+    String? userId,
+  }) async {
     return userId != null
         ? await isFavoriteServer(userId, anime['mal_id'])
         : await isFavoriteLocal(anime['mal_id']);
@@ -209,6 +227,9 @@ class FavoriteService {
 
   static Future<bool> isFavoriteServer(String userId, int malId) async {
     final favorites = await getServerFavorites(userId);
-    return favorites.any((item) => item['mal_id'].toString() == malId.toString());
+
+    return favorites.any(
+      (item) => item['mal_id'].toString() == malId.toString(),
+    );
   }
 }
