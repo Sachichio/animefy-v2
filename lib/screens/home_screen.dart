@@ -24,6 +24,8 @@ class _HomeScreenState extends State<HomeScreen> {
   bool isLoading = true;
   bool isLoggedIn = false;
   String? userId;
+  String? userRole;
+
 
   SortOption? selectedSortPopular;
   SortOption? selectedSortAiring;
@@ -40,12 +42,12 @@ class _HomeScreenState extends State<HomeScreen> {
     getUpcomingAnime();
   }
 
-  /// LOGIN STATUS
   Future<void> _checkLoginStatus() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
       isLoggedIn = prefs.getBool("isLoggedIn") ?? false;
       userId = prefs.getString("userId");
+      userRole = prefs.getString("role") ?? "user"; // AMBIL ROLE
     });
   }
 
@@ -76,7 +78,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  /// FILTER GENRE HENTAI
   List<dynamic> filterHentai(List<dynamic> data) {
     return data.where((anime) {
       final genres = anime['genres'] as List<dynamic>? ?? [];
@@ -84,7 +85,6 @@ class _HomeScreenState extends State<HomeScreen> {
     }).toList();
   }
 
-  /// FETCH DATA
   Future<void> getAnime() async {
     try {
       final data = await ApiService.fetchTopAnime();
@@ -94,7 +94,6 @@ class _HomeScreenState extends State<HomeScreen> {
       });
     } catch (e) {
       setState(() => isLoading = false);
-      print('Error fetching top anime: $e');
     }
   }
 
@@ -102,21 +101,16 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       final data = await ApiService.fetchAiringAnime();
       setState(() => airingAnimeList = filterHentai(data));
-    } catch (e) {
-      print('Error fetching airing anime: $e');
-    }
+    } catch (e) {}
   }
 
   Future<void> getUpcomingAnime() async {
     try {
       final data = await ApiService.fetchUpcomingAnime();
       setState(() => upcomingAnimeList = filterHentai(data));
-    } catch (e) {
-      print('Error fetching upcoming anime: $e');
-    }
+    } catch (e) {}
   }
 
-  /// SORT
   void sortAnime(List<dynamic> list, SortOption option) {
     switch (option) {
       case SortOption.scoreDesc:
@@ -131,33 +125,36 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  /// APPBAR ICON
   Widget _buildAppBarIcon({required IconData icon, required VoidCallback onTap}) {
+    final bool isMobile = MediaQuery.of(context).size.width < 600;
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 6),
       child: GestureDetector(
         onTap: onTap,
         child: Container(
-          margin: const EdgeInsets.symmetric(vertical: 8),
-          padding: const EdgeInsets.all(8),
+          padding: EdgeInsets.all(isMobile ? 8 : 10),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.15),
+            color: Colors.white.withOpacity(0.18),
             shape: BoxShape.circle,
           ),
-          child: Icon(icon, color: Colors.white),
+          child: Icon(
+            icon,
+            color: Colors.white,
+            size: isMobile ? 22 : 26,
+          ),
         ),
       ),
     );
   }
 
-  /// BUILD SECTION
   Widget buildSection(
-      String title,
-      List<dynamic> list,
-      SortOption? selectedSort,
-      ValueChanged<SortOption> onSortSelected,
-      int maxCount,
-      ) {
+    String title,
+    List<dynamic> list,
+    SortOption? selectedSort,
+    ValueChanged<SortOption> onSortSelected,
+    int maxCount,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -166,37 +163,45 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(title, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+              Text(title,
+                  style: const TextStyle(
+                      fontSize: 22, fontWeight: FontWeight.bold)),
               PopupMenuButton<SortOption>(
-                icon: Icon(Icons.filter_list, size: 24, color: Theme.of(context).colorScheme.primary),
+                icon: const Icon(Icons.filter_list),
                 onSelected: onSortSelected,
                 itemBuilder: (_) => const [
-                  PopupMenuItem(value: SortOption.scoreDesc, child: Text('Sortir berdasarkan Skor')),
-                  PopupMenuItem(value: SortOption.titleAsc, child: Text('Sortir Judul A-Z')),
-                  PopupMenuItem(value: SortOption.titleDesc, child: Text('Sortir Judul Z-A')),
+                  PopupMenuItem(
+                      value: SortOption.scoreDesc,
+                      child: Text('Sortir berdasarkan Skor')),
+                  PopupMenuItem(
+                      value: SortOption.titleAsc,
+                      child: Text('Sortir Judul A-Z')),
+                  PopupMenuItem(
+                      value: SortOption.titleDesc,
+                      child: Text('Sortir Judul Z-A')),
                 ],
               ),
             ],
           ),
         ),
         list.isEmpty
-            ? Padding(
-                padding: const EdgeInsets.all(16),
-                child: Center(child: Text("Tidak ada data ${title.toLowerCase()}")),
+            ? const Padding(
+                padding: EdgeInsets.all(16),
+                child: Center(child: Text("Tidak ada data")),
               )
             : ListView.separated(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 itemCount: list.length.clamp(0, maxCount),
-                separatorBuilder: (_, __) => Divider(height: 1, color: Colors.grey.shade300),
+                separatorBuilder: (_, __) =>
+                    Divider(height: 1, color: Colors.grey.shade300),
                 itemBuilder: (_, index) {
                   final anime = list[index];
                   return Card(
-                    margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                    margin:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                     elevation: 2,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                     child: ListTile(
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                       onTap: () {
                         Navigator.push(
                           context,
@@ -212,24 +217,16 @@ class _HomeScreenState extends State<HomeScreen> {
                         borderRadius: BorderRadius.circular(6),
                         child: FadeInImage.memoryNetwork(
                           placeholder: kTransparentImage,
-                          image: anime['images']?['jpg']?['image_url'] ?? '',
+                          image:
+                              anime['images']?['jpg']?['image_url'] ?? '',
                           width: 60,
                           height: 90,
                           fit: BoxFit.cover,
-                          imageErrorBuilder: (_, __, ___) =>
-                              const Icon(Icons.broken_image, size: 60, color: Colors.grey),
                         ),
                       ),
-                      title: Text(
-                        anime['title'] ?? 'Unknown',
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                      subtitle: Padding(
-                        padding: const EdgeInsets.only(top: 6),
-                        child: Text("Score: ${anime['score'] ?? 'N/A'}"),
-                      ),
+                      title: Text(anime['title'] ?? 'Unknown'),
+                      subtitle:
+                          Text("Score: ${anime['score'] ?? 'N/A'}"),
                       trailing: const Icon(Icons.chevron_right),
                     ),
                   );
@@ -239,82 +236,239 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  /// BUILD
   @override
   Widget build(BuildContext context) {
+    final bool isMobile = MediaQuery.of(context).size.width < 600;
+
     return Scaffold(
+      // ================================
+      // HAMBURGER MENU FIX
+      // ================================
+      drawer: Drawer(
+        child: ListView(
+          padding: EdgeInsets.zero,
+          children: [
+            DrawerHeader(
+              decoration: BoxDecoration(color: Colors.deepPurple.shade400),
+              child: const Center(
+                child: Text(
+                  "Animefy Menu",
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 22,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ),
+
+            // =======================
+            // TOMBOL DASHBOARD ADMIN
+            // =======================
+            if (isLoggedIn && userRole == "admin")
+              ListTile(
+                leading: const Icon(Icons.dashboard),
+                title: const Text("Dashboard Admin"),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.pushNamed(context, "/admin/dashboard");
+                },
+              ),
+
+            // =======================
+            // TOMBOL DASHBOARD USER
+            // =======================
+            if (isLoggedIn && userRole == "user")
+              ListTile(
+                leading: const Icon(Icons.dashboard),
+                title: const Text("Dashboard User"),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.pushNamed(context, "/user/dashboard");
+                },
+              ),
+
+            // =======================
+            // MENU GENRE
+            // =======================
+            ListTile(
+              leading: const Icon(Icons.category),
+              title: const Text("Genre"),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.pushNamed(context, "/anime/genre");
+              },
+            ),
+
+            // =======================
+            // MENU SEASON
+            // =======================
+            ListTile(
+              leading: const Icon(Icons.event),
+              title: const Text("Season"),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.pushNamed(context, "/anime/season");
+              },
+            ),
+
+            // =======================
+            // MENU STUDIO
+            // =======================
+            ListTile(
+              leading: const Icon(Icons.business),
+              title: const Text("Studio"),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.pushNamed(context, "/anime/studio");
+              },
+            ),
+
+            // =======================
+            // MENU POPULAR
+            // =======================
+            ListTile(
+              leading: const Icon(Icons.local_fire_department),
+              title: const Text("Popular Anime"),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.pushNamed(context, "/anime/popular");
+              },
+            ),
+
+            // =======================
+            // MENU ONGOING
+            // =======================
+            ListTile(
+              leading: const Icon(Icons.timelapse),
+              title: const Text("Ongoing Anime"),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.pushNamed(context, "/anime/ongoing");
+              },
+            ),
+
+            // =======================
+            // MENU COMPLETED
+            // =======================
+            ListTile(
+              leading: const Icon(Icons.check_circle),
+              title: const Text("Completed Anime"),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.pushNamed(context, "/anime/completed");
+              },
+            ),
+
+            // =======================
+            // MENU UPCOMING
+            // =======================
+            ListTile(
+              leading: const Icon(Icons.new_releases),
+              title: const Text("Upcoming Anime"),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.pushNamed(context, "/anime/upcoming");
+              },
+            ),
+          ],
+        ),
+      ),
+
+      // ================================
+      // APP BAR: title dihapus
+      // ================================
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(60),
         child: Container(
           decoration: BoxDecoration(
             gradient: LinearGradient(
-              colors: [Colors.deepPurple.shade400, Colors.indigo.shade600],
+              colors: [
+                Colors.deepPurple.shade400,
+                Colors.indigo.shade600
+              ],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
-            borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
-            boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 6, offset: Offset(0, 3))],
+            borderRadius:
+                const BorderRadius.vertical(bottom: Radius.circular(16)),
           ),
           child: AppBar(
             backgroundColor: Colors.transparent,
             elevation: 0,
-            automaticallyImplyLeading: false,
+            automaticallyImplyLeading: true,
+            iconTheme: const IconThemeData(color: Colors.white),
+
             title: const Text(
               "Animefy",
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 22, color: Colors.white),
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 22,
+                color: Colors.white,
+              ),
             ),
-            centerTitle: true,
+            centerTitle: false, // Judul jadi di kiri dekat hamburger
+
             actions: [
               _buildAppBarIcon(
                 icon: Icons.favorite,
                 onTap: () => Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => FavoriteScreen(userId: userId)),
+                  MaterialPageRoute(
+                      builder: (_) => FavoriteScreen(userId: userId)),
                 ),
               ),
               _buildAppBarIcon(
                 icon: Icons.search,
                 onTap: () => Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => SearchScreen(userId: userId)),
+                  MaterialPageRoute(
+                      builder: (_) => SearchScreen(userId: userId)),
                 ),
               ),
-              _buildAppBarIcon(icon: Icons.brightness_6, onTap: widget.toggleTheme),
+              _buildAppBarIcon(
+                  icon: Icons.brightness_6, onTap: widget.toggleTheme),
               if (!isLoggedIn)
                 _buildAppBarIcon(icon: Icons.login, onTap: _login)
               else
                 _buildAppBarIcon(icon: Icons.logout, onTap: _logout),
+              SizedBox(width: isMobile ? 4 : 12),
             ],
           ),
         ),
       ),
+
       body: isLoading
           ? const Center(child: CircularProgressIndicator())
           : Scrollbar(
               controller: _scrollController,
-              thumbVisibility: true,
               child: SingleChildScrollView(
                 controller: _scrollController,
                 padding: const EdgeInsets.only(bottom: 20),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    buildSection("Popular Anime", animeList, selectedSortPopular, (option) {
+                    buildSection("Popular Anime", animeList,
+                        selectedSortPopular, (opt) {
                       setState(() {
-                        selectedSortPopular = option;
-                        sortAnime(animeList, option);
+                        selectedSortPopular = opt;
+                        sortAnime(animeList, opt);
                       });
                     }, 5),
-                    buildSection("Ongoing Anime", airingAnimeList, selectedSortAiring, (option) {
+
+                    buildSection("Ongoing Anime", airingAnimeList,
+                        selectedSortAiring, (opt) {
                       setState(() {
-                        selectedSortAiring = option;
-                        sortAnime(airingAnimeList, option);
+                        selectedSortAiring = opt;
+                        sortAnime(airingAnimeList, opt);
                       });
                     }, 12),
-                    buildSection("Upcoming Anime", upcomingAnimeList, selectedSortUpcoming, (option) {
+
+                    buildSection("Upcoming Anime", upcomingAnimeList,
+                        selectedSortUpcoming, (opt) {
                       setState(() {
-                        selectedSortUpcoming = option;
-                        sortAnime(upcomingAnimeList, option);
+                        selectedSortUpcoming = opt;
+                        sortAnime(upcomingAnimeList, opt);
                       });
                     }, 10),
                   ],

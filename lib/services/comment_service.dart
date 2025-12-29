@@ -1,11 +1,12 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 class CommentService {
   static const String baseUrl =
       "https://692c6b34c829d464006f84a7.mockapi.io/Comments";
 
-  /// URL Users untuk ambil username & role
+  /// URL Users untuk ambil username, role, avatar
   static const String usersUrl =
       "https://692c6a37c829d464006f81bc.mockapi.io/Users";
 
@@ -57,7 +58,6 @@ class CommentService {
     final body = jsonEncode({
       "commentText": newText,
       "edited": true,
-      // Hapus timestamp! biarkan timestamp lama tetap
     });
 
     final response = await http.put(
@@ -86,11 +86,15 @@ class CommentService {
   static Future<String> getUsername(String userId) async {
     final url = Uri.parse("$usersUrl/$userId");
 
-    final response = await http.get(url);
+    try {
+      final response = await http.get(url);
 
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      return data['username'] ?? "Unknown";
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return data['username'] ?? "Unknown";
+      }
+    } catch (e) {
+      debugPrint("getUsername error: $e");
     }
 
     return "Unknown";
@@ -102,13 +106,45 @@ class CommentService {
   static Future<String> getUserRole(String userId) async {
     final url = Uri.parse("$usersUrl/$userId");
 
-    final response = await http.get(url);
+    try {
+      final response = await http.get(url);
 
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      return data['role'] ?? "user";
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return data['role'] ?? "user";
+      }
+    } catch (e) {
+      debugPrint("getUserRole error: $e");
     }
 
     return "user";
+  }
+
+  // ============================================================
+  // GET USER AVATAR (nullable, fallback ke ui-avatars)
+  // ============================================================
+  static Future<String?> getUserAvatar(String userId) async {
+    final url = Uri.parse("$usersUrl/$userId");
+
+    try {
+      final response = await http.get(url);
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+
+        // MockAPI sering beda nama field → cek semua kemungkinan
+        final avatar =
+            data['avatarUrl'] ?? data['avatar'] ?? data['image'] ?? "";
+
+        if (avatar is String && avatar.trim().isNotEmpty) {
+          return avatar; // punya avatar
+        }
+      }
+    } catch (e) {
+      debugPrint("getUserAvatar error: $e");
+    }
+
+    // return null → UI fallback di comment_section
+    return null;
   }
 }

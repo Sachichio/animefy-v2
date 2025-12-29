@@ -7,12 +7,15 @@ import '../services/favorite_service.dart';
 import '../widgets/comment_section.dart';
 
 class DetailScreen extends StatefulWidget {
-  final Map<String, dynamic> anime;
+  /// Bisa dipanggil dua cara:
+  /// 1) DetailScreen(anime: map, userId: ...)
+  /// 2) Navigator.pushNamed(context, "/anime/detail", arguments: map)
+  final Map<String, dynamic>? anime;
   final String? userId;
 
   const DetailScreen({
     super.key,
-    required this.anime,
+    this.anime,
     this.userId,
   });
 
@@ -22,28 +25,81 @@ class DetailScreen extends StatefulWidget {
 
 class _DetailScreenState extends State<DetailScreen> {
   // ============================
+  // STATE
+  // ============================
+  Map<String, dynamic>? fullData;
+  bool isLoadingDetail = true;
+
+  bool isFavorite = false;
+  bool _didInit = false; // to avoid double init in didChangeDependencies
+
+  // Translation
+  bool showIndonesian = false;
+  String translatedSynopsis = '';
+  bool isTranslating = false;
+
+  // ============================
+  // HELPERS TO ACCESS ANIME SOURCE
+  // ============================
+  /// anime passed either via constructor or via route arguments
+  Map<String, dynamic> get passedAnime {
+    // priority: widget.anime (constructor) > route args > empty map
+    final routeArgs = ModalRoute.of(context)?.settings.arguments;
+    if (widget.anime != null) return widget.anime!;
+    if (routeArgs != null && routeArgs is Map<String, dynamic>) {
+      return routeArgs;
+    }
+    if (routeArgs != null && routeArgs is Map) {
+      // sometimes Map is not typed
+      return Map<String, dynamic>.from(routeArgs);
+    }
+    return {};
+  }
+
+  int? get passedMalId {
+    final a = passedAnime;
+    if (a.containsKey('mal_id')) {
+      final raw = a['mal_id'];
+      if (raw is int) return raw;
+      final parsed = int.tryParse(raw?.toString() ?? '');
+      return parsed;
+    }
+    return null;
+  }
+
+  Map<String, dynamic> get dataToShow {
+    // prefer fullData (fetched full endpoint), else fallback to passedAnime
+    return fullData ?? passedAnime;
+  }
+
+  // ============================
   // FAVORITE
   // ============================
-  bool isFavorite = false;
-
   Future<void> checkFavorite() async {
     try {
+      final malId = passedMalId;
+      if (malId == null) {
+        setState(() => isFavorite = false);
+        return;
+      }
+
       final fav = widget.userId != null
-          ? await FavoriteService.isFavoriteServer(
-              widget.userId!,
-              widget.anime['mal_id'],
-            )
-          : await FavoriteService.isFavoriteLocal(
-              widget.anime['mal_id'],
-            );
+          ? await FavoriteService.isFavoriteServer(widget.userId!, malId)
+          : await FavoriteService.isFavoriteLocal(malId);
 
       if (mounted) setState(() => isFavorite = fav);
-    } catch (_) {}
+    } catch (e) {
+      // ignore error but keep non-fatal
+      if (mounted) setState(() => isFavorite = false);
+    }
   }
 
   Future<void> toggleFavorite() async {
     try {
-      final dataToSave = fullData ?? widget.anime;
+      final malId = passedMalId;
+      if (malId == null) return;
+
+      final dataToSave = fullData ?? passedAnime;
       final result = await FavoriteService.toggleFavorite(
         dataToSave,
         userId: widget.userId,
@@ -51,31 +107,42 @@ class _DetailScreenState extends State<DetailScreen> {
 
       if (mounted) setState(() => isFavorite = result);
     } catch (e) {
-      print("Error toggleFavorite: $e");
+      // ignore; optionally show snackbar
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal toggle favorite: $e')),
+        );
+      }
     }
   }
 
   // ============================
   // DETAIL JIKAN
   // ============================
-  Map<String, dynamic>? fullData;
-  bool isLoadingDetail = true;
-
   Future<void> fetchDetail() async {
+    setState(() => isLoadingDetail = true);
+
     try {
-      final malId = widget.anime['mal_id'];
-      if (malId == null) return setState(() => isLoadingDetail = false);
+      final malId = passedMalId;
+      if (malId == null) {
+        // nothing to fetch
+        if (mounted) setState(() => isLoadingDetail = false);
+        return;
+      }
 
       final url = Uri.parse("https://api.jikan.moe/v4/anime/$malId/full");
       final res = await http.get(url);
 
       if (res.statusCode == 200) {
-        fullData = jsonDecode(res.body)['data'];
+        final extracted = jsonDecode(res.body);
+        if (extracted != null && extracted['data'] is Map) {
+          fullData = Map<String, dynamic>.from(extracted['data']);
+        }
       }
-
-      if (mounted) setState(() => isLoadingDetail = false);
     } catch (e) {
-      print("Fetch detail error: $e");
+      // non-fatal
+      debugPrint("Fetch detail error: $e");
+    } finally {
       if (mounted) setState(() => isLoadingDetail = false);
     }
   }
@@ -83,20 +150,14 @@ class _DetailScreenState extends State<DetailScreen> {
   // ============================
   // TRANSLATION
   // ============================
-  bool showIndonesian = false;
-  String translatedSynopsis = '';
-  bool isTranslating = false;
-
   Future<String> translateText(String text, String targetLang) async {
     try {
       final encoded = Uri.encodeComponent(text);
-
       final url = Uri.parse(
         'https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=$targetLang&dt=t&q=$encoded',
       );
 
       final res = await http.get(url);
-
       if (res.statusCode == 200) {
         final json = jsonDecode(res.body);
         return (json[0] as List).map((e) => e[0]).join('');
@@ -109,38 +170,41 @@ class _DetailScreenState extends State<DetailScreen> {
 
   void toggleLanguage() async {
     final english = fullData?['synopsis'] ??
-        widget.anime['synopsis'] ??
+        passedAnime['synopsis'] ??
         'Tidak tersedia sinopsis.';
 
     if (!showIndonesian) {
       setState(() => isTranslating = true);
-
       final result = await translateText(english, 'id');
-
-      if (mounted) {
-        setState(() {
-          translatedSynopsis = result;
-          showIndonesian = true;
-          isTranslating = false;
-        });
-      }
+      if (!mounted) return;
+      setState(() {
+        translatedSynopsis = result;
+        showIndonesian = true;
+        isTranslating = false;
+      });
     } else {
       setState(() => showIndonesian = false);
     }
   }
 
   // ============================
-  // INIT
+  // LIFECYCLE
   // ============================
   @override
-  void initState() {
-    super.initState();
-    checkFavorite();
-    fetchDetail();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    // do this once when widget enters tree and context is available
+    if (!_didInit) {
+      _didInit = true;
+      // Kick off checkFavorite & fetchDetail (safe because we can access ModalRoute here)
+      checkFavorite();
+      fetchDetail();
+    }
   }
 
   // ============================
-  // HELPERS
+  // HELPERS FOR UI
   // ============================
   String getImage(Map anime) {
     return anime['images']?['jpg']?['large_image_url'] ??
@@ -157,7 +221,6 @@ class _DetailScreenState extends State<DetailScreen> {
 
   List<String> normalizeList(List? list) {
     if (list == null) return [];
-
     return list.map<String>((e) {
       if (e is Map && e['name'] != null) return e['name'].toString();
       return e.toString();
@@ -169,7 +232,7 @@ class _DetailScreenState extends State<DetailScreen> {
   // ============================
   @override
   Widget build(BuildContext context) {
-    final anime = fullData ?? widget.anime;
+    final anime = dataToShow;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     final studios = normalizeList(anime['studios']);
@@ -181,9 +244,6 @@ class _DetailScreenState extends State<DetailScreen> {
     return Scaffold(
       body: CustomScrollView(
         slivers: [
-          // ============================
-          // TOP APP BAR
-          // ============================
           SliverAppBar(
             pinned: true,
             expandedHeight: 320,
@@ -201,10 +261,6 @@ class _DetailScreenState extends State<DetailScreen> {
             ),
             flexibleSpace: FlexibleSpaceBar(
               titlePadding: const EdgeInsets.only(left: 16, bottom: 16),
-
-              // ============================
-              // FIX: TITLE BOX NEW
-              // ============================
               title: Container(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -224,7 +280,6 @@ class _DetailScreenState extends State<DetailScreen> {
                   ),
                 ),
               ),
-
               background: Stack(
                 fit: StackFit.expand,
                 children: [
@@ -234,14 +289,12 @@ class _DetailScreenState extends State<DetailScreen> {
                     color: Colors.black.withOpacity(0.3),
                     colorBlendMode: BlendMode.darken,
                   ),
-
                   Positioned.fill(
                     child: BackdropFilter(
                       filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
                       child: Container(color: Colors.transparent),
                     ),
                   ),
-
                   Center(
                     child: Padding(
                       padding: const EdgeInsets.only(top: 65),
@@ -258,8 +311,6 @@ class _DetailScreenState extends State<DetailScreen> {
                 ],
               ),
             ),
-
-            // BUTTONS
             actions: [
               IconButton(
                 icon: Icon(
@@ -268,7 +319,6 @@ class _DetailScreenState extends State<DetailScreen> {
                 ),
                 onPressed: toggleFavorite,
               ),
-
               Padding(
                 padding: const EdgeInsets.only(right: 12),
                 child: Row(
@@ -288,9 +338,6 @@ class _DetailScreenState extends State<DetailScreen> {
             ],
           ),
 
-          // ============================
-          // CONTENT
-          // ============================
           SliverPadding(
             padding: const EdgeInsets.all(16),
             sliver: SliverList(
@@ -304,7 +351,6 @@ class _DetailScreenState extends State<DetailScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Chips info
                         Wrap(
                           spacing: 10,
                           runSpacing: 10,
@@ -319,22 +365,16 @@ class _DetailScreenState extends State<DetailScreen> {
                         ),
 
                         const SizedBox(height: 22),
-
-                        // ============= English title =============
                         _infoLabel("English"),
                         const SizedBox(height: 6),
                         _infoBox(anime['title_english'], isDark),
 
                         const SizedBox(height: 22),
-
-                        // ============= Japanese title =============
                         _infoLabel("Japanese"),
                         const SizedBox(height: 6),
                         _infoBox(anime['title_japanese'], isDark),
 
                         const SizedBox(height: 22),
-
-                        // Studio
                         _infoLabel("Studio"),
                         const SizedBox(height: 6),
                         studios.isEmpty
@@ -350,8 +390,6 @@ class _DetailScreenState extends State<DetailScreen> {
                               ),
 
                         const SizedBox(height: 22),
-
-                        // Genre
                         _infoLabel("Genre"),
                         const SizedBox(height: 6),
                         genres.isEmpty
@@ -367,8 +405,6 @@ class _DetailScreenState extends State<DetailScreen> {
                               ),
 
                         const SizedBox(height: 28),
-
-                        // ============= Sinopsis =============
                         _infoLabel("Sinopsis"),
                         const SizedBox(height: 10),
                         isTranslating
@@ -383,11 +419,9 @@ class _DetailScreenState extends State<DetailScreen> {
 
                         const SizedBox(height: 32),
 
-                        // ================================
                         // COMMENT SECTION
-                        // ================================
                         CommentSection(
-                          malId: anime['mal_id'],
+                          malId: passedMalId ?? 0,
                           userId: widget.userId,
                         ),
 
@@ -395,7 +429,7 @@ class _DetailScreenState extends State<DetailScreen> {
                       ],
                     ),
                   ),
-                ),
+                )
               ]),
             ),
           ),
@@ -404,7 +438,6 @@ class _DetailScreenState extends State<DetailScreen> {
     );
   }
 
-  // Helper chip
   Widget _chip(BuildContext context, String label, dynamic value) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -416,7 +449,6 @@ class _DetailScreenState extends State<DetailScreen> {
     );
   }
 
-  // Helper label
   Widget _infoLabel(String text) {
     return Text(
       text,
@@ -427,7 +459,6 @@ class _DetailScreenState extends State<DetailScreen> {
     );
   }
 
-  // FIX: Info box following dark/light theme
   Widget _infoBox(String? value, bool isDark) {
     return Container(
       width: double.infinity,

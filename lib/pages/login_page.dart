@@ -47,9 +47,12 @@ class _LoginPageState extends State<LoginPage> {
           // Simpan data user ke SharedPreferences
           final prefs = await SharedPreferences.getInstance();
           await prefs.setString("username", user['username']);
-          await prefs.setString("role", user['role']);
+          await prefs.setString("role", user['role'] ?? "user");
           await prefs.setBool("isLoggedIn", true);
           await prefs.setString("userId", user['id']);
+
+          // WAJIB: simpan avatar ke shared preferences
+          await prefs.setString("avatarUrl", user['avatarUrl'] ?? "");
 
           // LOGIN SUKSES — tidak perlu sinkronisasi favorit
           try {
